@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateMaze, validateMaze, solveMaze } from '../public/maze.js';
+import { generateMaze, validateMaze, solveMaze, MIN_SIZE, MAX_SIZE } from '../public/maze.js';
 import { buildRequest, getDecision } from '../typesafe.js';
 import { makeServer } from '../server.js';
 
@@ -17,15 +17,39 @@ test('500 seeded mazes are connected and BFS returns legal shortest routes', () 
   let seed = 42;
   const random = () => ((seed = (1664525 * seed + 1013904223) >>> 0) / 4294967296);
   for (let trial = 0; trial < 500; trial++) {
-    const maze = generateMaze(random); validateMaze(maze);
-    const dist = Array(25).fill(Infinity); dist[0] = 0;
+    const size = MIN_SIZE + trial % (MAX_SIZE - MIN_SIZE + 1);
+    const maze = generateMaze(random, size); validateMaze(maze);
+    assert.equal(maze.length, size * size);
+    const dist = Array(maze.length).fill(Infinity); dist[0] = 0;
     // Independent repeated relaxation checks BFS distance, including cyclic mazes.
-    for (let pass = 0; pass < 25; pass++) for (let a = 0; a < 25; a++) for (const b of maze[a]) dist[b] = Math.min(dist[b], dist[a] + 1);
+    for (let pass = 0; pass < maze.length; pass++) for (let a = 0; a < maze.length; a++) for (const b of maze[a]) dist[b] = Math.min(dist[b], dist[a] + 1);
     assert.ok(dist.every(Number.isFinite));
     const { path } = solveMaze(maze);
-    assert.equal(path.length - 1, dist[24]);
-    assert.equal(path[0], 0); assert.equal(path.at(-1), 24);
+    assert.equal(path.length - 1, dist.at(-1));
+    assert.equal(path[0], 0); assert.equal(path.at(-1), maze.length - 1);
     path.slice(1).forEach((cell, i) => assert.ok(maze[path[i]].includes(cell)));
+  }
+});
+test('size boundaries and row-wrapping passages are rejected', () => {
+  for (const size of [0, 2, 11, 3.5, NaN]) assert.throws(() => generateMaze(Math.random, size));
+  for (const count of [0, 4, 10, 121]) assert.throws(() => validateMaze(Array.from({ length: count }, () => [])));
+  const maze = generateMaze(Math.random, 10);
+  maze[9] = [10]; maze[10] = [9];
+  assert.throws(() => validateMaze(maze), /Invalid maze passages/);
+});
+test('model state and coordinates follow the selected maze size', () => {
+  for (const size of [3, 7, 10]) {
+    const maze = generateMaze(Math.random, size);
+    const history = solveMaze(maze).path.slice(0, -1);
+    const body = buildRequest(maze, history);
+    assert.equal(body.state.goal, size * size - 1);
+    assert.ok(body.state.description.startsWith(`${size}×${size}`));
+    assert.ok(body.questions.move.instructions.includes(`goal ${size * size - 1}.`));
+    for (const cell of body.state.discovered) {
+      assert.equal(cell.row, Math.floor(cell.cell / size) + 1);
+      assert.equal(cell.column, cell.cell % size + 1);
+    }
+    assert.deepEqual(body.state.discovered.map(c => c.cell), [...new Set(history)]);
   }
 });
 test('AI receives only discovered cells and actual history; no BFS route', () => {
@@ -82,6 +106,17 @@ test('local HTTP flow, no-key state, validation, and secret isolation', async ()
         assert.ok(maze[0].includes((await result.json()).next));
         assert.equal((await post({ maze, history: [0, 24] })).status, 400);
         assert.equal((await post({ maze: [], history: [0] })).status, 400);
+        for (const size of [3, 10]) {
+          const resized = generateMaze(Math.random, size);
+          const path = solveMaze(resized).path;
+          const history = path.slice(0, Math.min(path.length - 1, 80));
+          const response = await post({ maze: resized, history });
+          assert.equal(response.status, 200);
+          const data = await response.json();
+          assert.equal(data.diagnostics.request.state.goal, size * size - 1);
+          assert.ok(resized[history.at(-1)].includes(data.next));
+          assert.equal((await post({ maze: resized, history: path })).status, 400);
+        }
       }
       assert.equal((await fetch(`${base}/.env`)).status, 404);
     } finally { await new Promise(resolve => server.close(resolve)); }

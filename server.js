@@ -32,10 +32,10 @@ export function makeServer({ apiKey = process.env.TYPESAFE_API_KEY, fetcher = fe
         try {
           ({ maze, history } = JSON.parse(body)); validateMaze(maze);
           if (!Array.isArray(history) || history.length < 1 || history.length > 80 || history[0] !== 0 ||
-              history.some((cell, i) => !Number.isInteger(cell) || cell < 0 || cell > 24 ||
-                (i > 0 && !maze[history[i - 1]].includes(cell))) || history.includes(24)) throw new Error('Invalid history');
+              history.some((cell, i) => !Number.isInteger(cell) || cell < 0 || cell >= maze.length ||
+                (i > 0 && !maze[history[i - 1]].includes(cell))) || history.includes(maze.length - 1)) throw new Error('Invalid history');
         }
-        catch { return json(400, { error: 'Send a valid, solvable 5×5 maze.' }); }
+        catch { return json(400, { error: 'Send a valid, solvable square maze from 3×3 to 10×10.' }); }
         return json(200, await getDecision(maze, history, apiKey, fetcher));
       } catch (error) {
         return json(502, { error: error.name === 'TimeoutError' ? 'TypeSafe timed out. Please try again.'

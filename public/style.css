@@ -13,11 +13,11 @@ h1 { font-family: Georgia, serif; font-weight: 400; font-size: clamp(38px, 5vw, 
 .workspace { display: grid; grid-template-columns: 1.2fr 1fr; gap: 48px; align-items: start; }
 .board-card { padding: 22px; border: 1px solid #dce1d1; border-radius: 16px; background: #fffef8; box-shadow: 0 10px 35px #35452f07; }
 .board-heading { display: flex; justify-content: space-between; font-size: 9px; letter-spacing: 1.5px; color: #6c7868; margin-bottom: 22px; }
-#maze { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); aspect-ratio: 1; border: 2px solid #344b3b; }
+#maze { position: relative; display: grid; grid-template-columns: repeat(var(--maze-size, 5), minmax(0, 1fr)); grid-template-rows: repeat(var(--maze-size, 5), minmax(0, 1fr)); aspect-ratio: 1; border: 2px solid #344b3b; }
 .cell { position: relative; display: grid; place-items: center; background: #fafbf5; border: 0 solid #344b3b; font-size: 11px; transition: background 150ms; }
 .cell.explored { background: #e0e7d7; }
 .cell.route { background: #c6e89b; }
-.cell b { z-index: 2; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; }
+.cell b { z-index: 2; display: grid; place-items: center; width: min(28px, 80%); height: min(28px, 80%); border-radius: 50%; }
 .cell.start b { background: #304d37; color: white; }
 .cell.goal b { background: #edc276; color: #4b3b24; border-radius: 7px; }
 .cell.current::after { content: ''; position: absolute; width: 12px; height: 12px; border-radius: 50%; background: #52752f; }
@@ -84,3 +84,9 @@ pre { max-height: 400px; overflow: auto; padding: 16px; background: #24372d; col
 footer { display: flex; justify-content: space-between; gap: 20px; border-top: 1px solid #d9ddd0; margin-top: 36px; padding-top: 20px; font-size: 10px; color: #76806e; line-height: 1.7; }
 @media(max-width: 680px) { main { padding: 22px; } .workspace { grid-template-columns: 1fr; gap: 24px; } .intro { margin-top: 28px; } footer { flex-direction: column; gap: 6px; } .badge { display: none; } .controls { padding: 0; } }
 @media(prefers-reduced-motion: reduce) { .cell { transition: none; } }
+
+.size-control { margin-bottom: 20px; }
+.size-control label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+.size-control select { width: 100%; padding: 11px 12px; border: 1px solid #c9d1bf; border-radius: 7px; background: #fffef8; color: #304d37; font: inherit; font-size: 13px; }
+.size-control select:focus-visible { outline: 3px solid #cb932e; outline-offset: 3px; }
+.size-control p { font-size: 11px; line-height: 1.6; color: #69766b; margin: 8px 0 0; }

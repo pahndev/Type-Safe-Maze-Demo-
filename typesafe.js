@@ -1,18 +1,20 @@
+import { mazeSize } from './public/maze.js';
+
 export function buildRequest(maze, history) {
-  const current = history.at(-1);
+  const current = history.at(-1), size = mazeSize(maze), goal = maze.length - 1;
   return {
     model: 'jev-latest',
     state: {
-      description: '5×5 maze; row-major IDs 0–24. Only exits of visited cells are revealed. All passages are bidirectional. Other walls are unknown.',
-      current, goal: 24, history,
-      discovered: [...new Set(history)].map(cell => ({ cell, row: Math.floor(cell / 5) + 1, column: cell % 5 + 1,
+      description: `${size}×${size} maze; row-major IDs 0–${goal}. Only exits of visited cells are revealed. All passages are bidirectional. Other walls are unknown.`,
+      current, goal, history,
+      discovered: [...new Set(history)].map(cell => ({ cell, row: Math.floor(cell / size) + 1, column: cell % size + 1,
         visits: history.filter(n => n === cell).length, exits: maze[cell] }))
     },
     questions: { move: {
       type: 'choice',
-      instructions: 'Choose the next legal move from the current cell toward goal 24. Explore unknown passages when useful. Use history and visit counts to avoid repeating loops. Backtrack when needed. You only know the discovered portion of the maze.',
+      instructions: `Choose the next legal move from the current cell toward goal ${goal}. Explore unknown passages when useful. Use history and visit counts to avoid repeating loops. Backtrack when needed. You only know the discovered portion of the maze.`,
       criteria: Object.fromEntries(maze[current].map(next => [`to_${next}`,
-        `Move to cell ${next}, row ${Math.floor(next / 5) + 1}, column ${next % 5 + 1}. Visited ${history.filter(n => n === next).length} times.`]))
+        `Move to cell ${next}, row ${Math.floor(next / size) + 1}, column ${next % size + 1}. Visited ${history.filter(n => n === next).length} times.`]))
     } }
   };
 }

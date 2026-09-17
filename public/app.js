@@ -1,13 +1,14 @@
-import { generateMaze, solveMaze, GOAL } from './maze.js';
+import { generateMaze, solveMaze, SIZE, MIN_SIZE, MAX_SIZE } from './maze.js';
 
 const $ = id => document.getElementById(id);
+let size = SIZE;
 let maze, mazeNumber = 0, run = 0, controller;
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const delay = ms => new Promise(resolve => setTimeout(resolve, reducedMotion ? 0 : ms));
 let cells = [];
 let line;
 let records = [], attempts = 0;
-const coord = n => `(${Math.floor(n / 5) + 1}, ${n % 5 + 1})`;
+const coord = n => `(${Math.floor(n / size) + 1}, ${n % size + 1})`;
 const percent = n => `${(n * 100).toFixed(1)}%`;
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -59,7 +60,7 @@ function addDecision(decision, history, roundTripMs) {
   const body = element('div', undefined, 'move-body'), stats = element('div', undefined, 'move-stats');
   metrics(stats, [['Model', decision.model], ['Selected probability', percent(decision.probabilities[`to_${decision.next}`])],
     ['API latency', Number.isFinite(decision.diagnostics?.latencyMs) ? `${decision.diagnostics.latencyMs} ms` : '—'],
-    ['Browser round trip', `${roundTripMs} ms`], ['Discovered before move', `${new Set(history).size} / 25`], ['Prior visits to destination', priorVisits]]);
+    ['Browser round trip', `${roundTripMs} ms`], ['Discovered before move', `${new Set(history).size} / ${maze.length}`], ['Prior visits to destination', priorVisits]]);
   body.append(stats, element('h3', 'Legal moves · probability distribution'));
   for (const [option, probability] of Object.entries(decision.probabilities).sort((a, b) => b[1] - a[1])) {
     const cell = Number(option.slice(3)), selected = cell === decision.next;
@@ -80,14 +81,16 @@ function addDecision(decision, history, roundTripMs) {
 
 function render() {
   $('maze').replaceChildren();
+  $('maze').style.setProperty('--maze-size', size);
+  $('maze').setAttribute('aria-label', `${size} by ${size} maze, start at top left, goal at bottom right`);
   cells = maze.map((exits, cell) => {
     const element = document.createElement('div');
     element.className = 'cell';
-    if (!exits.includes(cell - 5)) element.style.borderTopWidth = '1px';
-    if (!exits.includes(cell + 1) || cell % 5 === 4) element.style.borderRightWidth = '1px';
-    if (!exits.includes(cell + 5)) element.style.borderBottomWidth = '1px';
-    if (!exits.includes(cell - 1) || cell % 5 === 0) element.style.borderLeftWidth = '1px';
-    if (cell === 0 || cell === GOAL) {
+    if (!exits.includes(cell - size)) element.style.borderTopWidth = '1px';
+    if (!exits.includes(cell + 1) || cell % size === size - 1) element.style.borderRightWidth = '1px';
+    if (!exits.includes(cell + size)) element.style.borderBottomWidth = '1px';
+    if (!exits.includes(cell - 1) || cell % size === 0) element.style.borderLeftWidth = '1px';
+    if (cell === 0 || cell === maze.length - 1) {
       element.classList.add(cell === 0 ? 'start' : 'goal');
       const marker = document.createElement('b'); marker.textContent = cell === 0 ? 'S' : 'G'; element.append(marker);
     }
@@ -95,7 +98,7 @@ function render() {
     return element;
   });
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.classList.add('path-lines'); svg.setAttribute('viewBox', '0 0 500 500'); svg.setAttribute('aria-hidden', 'true');
+  svg.classList.add('path-lines'); svg.setAttribute('viewBox', `0 0 ${size * 100} ${size * 100}`); svg.setAttribute('aria-hidden', 'true');
   line = document.createElementNS(svg.namespaceURI, 'polyline');
   for (const [key, value] of Object.entries({ fill: 'none', stroke: '#6a923f', 'stroke-width': '5', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' })) line.setAttribute(key, value);
   svg.append(line); $('maze').append(svg);
@@ -111,7 +114,11 @@ function stop() {
 }
 function reset() {
   run++; controller?.abort(); busy(false);
-  maze = generateMaze(); mazeNumber++; render();
+  size = Number($('maze-size').value);
+  maze = generateMaze(Math.random, size); mazeNumber++; render();
+  $('size-badge').textContent = `${size} × ${size} LAB`;
+  $('cell-count').textContent = `${maze.length} cells.`;
+  $('cell-range').textContent = `0–${maze.length - 1}`;
   $('maze-number').textContent = `MAZE ${String(mazeNumber).padStart(3, '0')}`;
   $('status').textContent = 'A fresh maze is ready to explore.';
   $('steps').textContent = $('visited').textContent = '—';
@@ -122,7 +129,7 @@ function paint(history) {
   cells.forEach(el => el.classList.remove('current'));
   for (const cell of history) cells[cell].classList.add('explored', 'route');
   cells[history.at(-1)].classList.add('current');
-  line.setAttribute('points', history.map(cell => `${(cell % 5) * 100 + 50},${Math.floor(cell / 5) * 100 + 50}`).join(' '));
+  line.setAttribute('points', history.map(cell => `${(cell % size) * 100 + 50},${Math.floor(cell / size) * 100 + 50}`).join(' '));
   $('steps').textContent = history.length - 1;
   $('visited').textContent = new Set(history).size;
 }
@@ -135,7 +142,7 @@ async function solve(useAI) {
     : 'BFS comparison: deterministic shortest path. No API calls.';
   try {
     if (useAI) {
-      while (history.at(-1) !== GOAL && history.length <= 80) {
+      while (history.at(-1) !== maze.length - 1 && history.length <= 80) {
         if (token !== run) return;
         $('status').textContent = `TypeSafe is choosing move ${history.length} of 80…`;
         controller = new AbortController();
@@ -154,7 +161,7 @@ async function solve(useAI) {
         await delay(220);
       }
       if (token !== run) return;
-      $('status').textContent = history.at(-1) === GOAL
+      $('status').textContent = history.at(-1) === maze.length - 1
         ? `Goal reached! TypeSafe took ${history.length - 1} moves. This route is not necessarily shortest.`
         : 'Stopped at 80 moves. TypeSafe has not reached the goal. Try again or compare with BFS.';
       updateDiagnostics($('status').textContent);
@@ -184,6 +191,11 @@ async function solve(useAI) {
     }
   } finally { if (token === run) busy(false); }
 }
+for (let n = MIN_SIZE; n <= MAX_SIZE; n++) {
+  const option = element('option', `${n} × ${n} · ${n * n} cells`);
+  option.value = n; option.selected = n === SIZE; $('maze-size').append(option);
+}
+$('maze-size').addEventListener('change', reset);
 $('new').addEventListener('click', reset);
 $('stop').addEventListener('click', stop);
 $('solve').addEventListener('click', () => solve(true));

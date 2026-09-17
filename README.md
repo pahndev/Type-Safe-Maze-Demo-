@@ -1,6 +1,6 @@
 # Small Maze — TypeSafe AI
 
-A dependency-free Node.js + HTML/CSS/JavaScript app. TypeSafe's Jev model chooses each move in a randomly generated, solvable 5×5 maze. No TypeScript or build tool is required.
+A dependency-free Node.js + HTML/CSS/JavaScript app. TypeSafe's Jev model chooses each move in a randomly generated, solvable maze. Choose any square size from 3×3 to 10×10 (default 5×5). No TypeScript or build tool is required.
 
 ## Run
 
@@ -22,7 +22,7 @@ npm test
 
 ## How it works
 
-- Randomized depth-first carving connects all 25 cells, then opens a few extra passages for alternate routes.
+- Randomized depth-first carving connects every cell, then opens a few extra passages for alternate routes. Changing **Maze size** cancels the current run and generates a fresh maze; New maze keeps the selected size. The AI limit stays at 80 moves for every size, so larger mazes may exceed it.
 - **Solve with TypeSafe** starts at S. On every move the local server sends the current cell, full move history, visit counts, and exits of visited cells to `POST https://api.typesafe.ai/v1/systemone`, model `jev-latest`.
 - One `Choice` question offers only legal neighboring cells. Jev picks the next move, including backtracking. The response's choice is checked, animated, and added to history before the next request. Even a cell with one exit is sent to the model.
 - The viewer sees the full maze; the model sees only discoveries. No BFS route, distance hints, or unexplored passages are sent to Jev.
