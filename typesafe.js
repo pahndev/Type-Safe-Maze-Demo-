@@ -19,6 +19,7 @@ export function buildRequest(maze, history) {
 
 export async function getDecision(maze, history, apiKey, fetcher = fetch) {
   const request = buildRequest(maze, history);
+  const started = performance.now();
   const response = await fetcher('https://api.typesafe.ai/v1/systemone', {
     method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(request), signal: AbortSignal.timeout(30000)
@@ -37,5 +38,11 @@ export async function getDecision(maze, history, apiKey, fetcher = fetch) {
     throw new Error('TypeSafe returned an incomplete or illegal move. Please try again.');
   }
   return { next: Number(answer.choice.slice(3)), confidence: answer.confidence,
-    probabilities: answer.probabilities, model: data.model || request.model };
+    probabilities: answer.probabilities, model: data.model || request.model,
+    diagnostics: {
+      request,
+      response: { model: data.model || request.model, answers: { move: answer }, usage: data.usage ?? null },
+      latencyMs: Math.round(performance.now() - started),
+      usage: data.usage ?? null
+    } };
 }

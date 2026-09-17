@@ -46,6 +46,25 @@ test('API adapter accepts valid choices and rejects illegal moves and API failur
   await assert.rejects(getDecision(maze, [0], 'x', async () => new Response('', { status: 401 })), /API key/);
   await assert.rejects(getDecision(maze, [0], 'x', async () => new Response('', { status: 429 })), /rate limit/);
 });
+test('diagnostics preserve the actual model input, answer, and optional usage without credentials', async () => {
+  const maze = generateMaze(), history = [0, maze[0][0], 0];
+  let sent;
+  const decision = await getDecision(maze, history, 'private-diagnostic-test-key', async (url, options) => {
+    sent = JSON.parse(options.body);
+    const response = await mock(url, { ...options, headers: { Authorization: 'Bearer test-key' } });
+    const data = await response.json();
+    data.usage = { input_tokens: 325, output_tokens: 24 };
+    return Response.json(data);
+  });
+  assert.deepEqual(decision.diagnostics.request, sent);
+  assert.deepEqual(decision.diagnostics.request.state.history, history);
+  assert.deepEqual(decision.diagnostics.usage, { input_tokens: 325, output_tokens: 24 });
+  assert.equal(decision.diagnostics.response.answers.move.choice, `to_${decision.next}`);
+  assert.ok(Number.isFinite(decision.diagnostics.latencyMs) && decision.diagnostics.latencyMs >= 0);
+  assert.ok(!JSON.stringify(decision).includes('private-diagnostic-test-key'));
+  const noUsage = await getDecision(maze, [0], 'test-key', mock);
+  assert.equal(noUsage.diagnostics.usage, null);
+});
 test('local HTTP flow, no-key state, validation, and secret isolation', async () => {
   for (const apiKey of ['', 'test-key']) {
     const server = makeServer({ apiKey, fetcher: mock });
